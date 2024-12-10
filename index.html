@@ -1,59 +1,141 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <title>HeyGen Avatar Integration</title>
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    video {
+      width: 100%;
+      height: auto;
+      background-color: black;
+    }
+    input, button {
+      margin: 10px;
+      padding: 10px;
+      font-size: 16px;
+    }
+  </style>
 </head>
 <body>
   <h1>HeyGen Avatar Integration</h1>
-  <video id="avatarVideo" autoplay style="width: 100%; height: auto; background-color: black;" controls></video>
-  
+  <div>
+    <button id="startBtn">Start</button>
+    <button id="closeBtn">Close</button>
+    <input id="taskInput" type="text" placeholder="Enter text" />
+    <button id="talkBtn">Talk</button>
+  </div>
+  <video id="mediaElement" autoplay playsinline controls></video>
+
   <script>
+    const API_CONFIG = {
+      serverUrl: "https://api.heygen.com", // HeyGen API server
+      apiToken: "YjVhNzNiMjI3NmE5NDYxOWIyM2Q0NWI0N2NiMTc1MmEtMTczMzg2MzI3MQ==", // Replace with your API key
+    };
+
+    let room = null; // LiveKit Room
+
+    // Function to start a session
     async function startSession() {
       try {
-        // Fetch a new streaming session from HeyGen API
-        const response = await fetch("https://api.heygen.com/v1/streaming.new", {
+        console.log("Starting HeyGen session...");
+
+        // Request a new session
+        const response = await fetch(`${API_CONFIG.serverUrl}/v1/streaming.new`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `YjVhNzNiMjI3NmE5NDYxOWIyM2Q0NWI0N2NiMTc1MmEtMTczMzQzMDMxMQ==` // Replace with your API key
+            Authorization: `Bearer ${API_CONFIG.apiToken}`,
           },
           body: JSON.stringify({
             version: "v2",
-            video_encoding: "H264"
-          })
+            video_encoding: "H264",
+          }),
         });
 
-        // Log response for debugging
-        console.log("API Response Status:", response.status);
-
-        // Throw error if the response isn't OK
         if (!response.ok) {
-          throw new Error(`API returned status: ${response.status}`);
+          throw new Error(`API Error: ${response.status} - ${response.statusText}`);
         }
 
-        // Parse JSON response
         const data = await response.json();
         console.log("API Response Data:", data);
 
-        // Check if stream URL is available
-        if (!data.stream) {
-          throw new Error("Stream data not found in API response.");
+        // Ensure the required keys are present
+        if (!data.livekit_url || !data.livekit_token) {
+          throw new Error("Missing LiveKit URL or token in the API response.");
         }
 
-        // Set the video source to the stream URL
-        const mediaElement = document.getElementById("avatarVideo");
-        mediaElement.srcObject = data.stream;
+        // Connect to LiveKit
+        console.log("Connecting to LiveKit...");
+        room = new LiveKit.Room();
+        const videoElement = document.getElementById("mediaElement");
 
-        console.log("Session started successfully.");
+        await room.connect(data.livekit_url, data.livekit_token);
+        room.on(LiveKit.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          if (track.kind === "video") {
+            track.attach(videoElement);
+          }
+        });
+
+        console.log("LiveKit connection successful!");
       } catch (error) {
-        // Log and alert any errors
-        console.error("Error during session initialization:", error);
-        alert("Error: Unable to start the avatar session. Check the console for details.");
+        console.error("Error initializing session:", error.message);
+        alert("Failed to start the session. Check the console for details.");
       }
     }
 
-    // Start the session when the page loads
-    window.onload = startSession;
+    // Function to close the session
+    function closeSession() {
+      if (room) {
+        room.disconnect();
+        console.log("Session closed.");
+      } else {
+        console.log("No session to close.");
+      }
+    }
+
+    // Function to send a "talk" request
+    async function sendTalkRequest() {
+      const taskInput = document.getElementById("taskInput").value;
+      if (!taskInput) {
+        alert("Please enter text to send.");
+        return;
+      }
+
+      try {
+        console.log("Sending talk request...");
+
+        const response = await fetch(`${API_CONFIG.serverUrl}/v1/streaming.talk`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${API_CONFIG.apiToken}`,
+          },
+          body: JSON.stringify({
+            text: taskInput,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Talk request failed: ${response.status} - ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log("Talk response:", data);
+      } catch (error) {
+        console.error("Error during talk request:", error.message);
+        alert("Failed to send the talk request. Check the console for details.");
+      }
+    }
+
+    // Add event listeners
+    document.getElementById("startBtn").addEventListener("click", startSession);
+    document.getElementById("closeBtn").addEventListener("click", closeSession);
+    document.getElementById("talkBtn").addEventListener("click", sendTalkRequest);
   </script>
 </body>
 </html>
