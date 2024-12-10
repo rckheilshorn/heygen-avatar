@@ -5,27 +5,46 @@
   <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 </head>
 <body>
-  <video id="avatarVideo" autoplay style="width: 100%; height: auto;"></video>
+  <h1>HeyGen Avatar Integration</h1>
+  <video id="avatarVideo" autoplay style="width: 100%; height: auto; background-color: black;" controls></video>
+  
   <script>
     async function startSession() {
-      const response = await fetch("https://api.heygen.com/v1/streaming.new", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer YOUR_API_KEY`
-        },
-        body: JSON.stringify({
-          version: "v2",
-          video_encoding: "H264"
-        })
-      });
-      const data = await response.json();
-      const mediaElement = document.getElementById("avatarVideo");
-      mediaElement.srcObject = data.stream;
+      try {
+        const response = await fetch("https://api.heygen.com/v1/streaming.new", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer YOUR_API_KEY` // Replace with your actual API key
+          },
+          body: JSON.stringify({
+            version: "v2",
+            video_encoding: "H264"
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`API returned status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.stream) {
+          throw new Error("Stream data not found in API response.");
+        }
+
+        const mediaElement = document.getElementById("avatarVideo");
+        mediaElement.srcObject = data.stream;
+
+        console.log("Session started successfully.");
+      } catch (error) {
+        console.error("Failed to start session:", error.message);
+        alert("Error: Unable to start the avatar session. Check the console for details.");
+      }
     }
 
     // Start the session when the page loads
-    startSession();
+    window.onload = startSession;
   </script>
 </body>
 </html>
